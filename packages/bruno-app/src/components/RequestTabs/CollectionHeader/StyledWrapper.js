@@ -151,6 +151,75 @@ const StyledWrapper = styled.div`
     color: ${(props) => props.theme.colors.text.danger};
     margin-left: 8px;
   }
+
+  .git-status-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid ${(props) => props.theme.app.collection.toolbar.environmentSelector.border};
+    background: ${(props) => props.theme.app.collection.toolbar.environmentSelector.bg};
+    color: ${(props) => props.theme.app.collection.toolbar.environmentSelector.text};
+    font-size: 12px;
+    line-height: 1rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    min-height: 24px;
+  }
+
+  .git-status-button:hover,
+  .git-status-button:focus-visible {
+    background: ${(props) => props.theme.app.collection.toolbar.environmentSelector.hoverBg};
+    border-color: ${(props) => props.theme.app.collection.toolbar.environmentSelector.hoverBorder};
+    outline: none;
+  }
+
+  .git-status-button.no-git {
+    color: ${(props) => props.theme.colors.text.subtext0};
+    border-color: ${(props) => props.theme.app.collection.toolbar.environmentSelector.noEnvironment.border};
+  }
+
+  .git-status-button.has-changes {
+    border-color: ${(props) => props.theme.status.warning.border};
+  }
+
+  .git-icon {
+    color: ${(props) => props.theme.app.collection.toolbar.environmentSelector.icon};
+    flex-shrink: 0;
+  }
+
+  .git-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(0,0,0,0.12);
+    border-top-color: ${(props) => props.theme.app.collection.toolbar.environmentSelector.icon};
+    border-radius: 50%;
+    animation: git-spin 0.9s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes git-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .git-status-label {
+    display: inline-block;
+    max-width: 88px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .git-status-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: ${(props) => props.theme.status.warning.text};
+    flex-shrink: 0;
+  }
+
   .display-icon{
     padding: 4px;
     box-sizing: content-box;

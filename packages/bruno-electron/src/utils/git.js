@@ -88,9 +88,18 @@ const getCollectionGitRepoUrl = async (gitRootPath) => {
 
 const initGit = async (gitRootPath) => {
   const git = getSimpleGitInstanceForPath(gitRootPath);
-  await git.init();
-  // Create and checkout main branch -> This is specific for use with Bruno
-  return await git.raw(['branch', '-M', 'main']);
+  try {
+    await git.raw(['init', '--initial-branch=main']);
+    console.debug('[git-utils] init: used --initial-branch=main for', gitRootPath);
+  } catch (err) {
+    console.debug('[git-utils] init: fallback init for', gitRootPath, err && err.message);
+    await git.raw(['init']);
+    await git.raw(['checkout', '-b', 'main']);
+  }
+
+  const branch = await git.revparse(['--abbrev-ref', 'HEAD']).then((b) => b.trim()).catch(() => '');
+  console.debug('[git-utils] init: current branch after init:', branch);
+  return branch;
 };
 
 const stageChanges = async (gitRootPath, files) => {

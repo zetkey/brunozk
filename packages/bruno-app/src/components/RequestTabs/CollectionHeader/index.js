@@ -14,7 +14,8 @@ import {
   IconFolder,
   IconUpload,
   IconFileCode,
-  IconFileOff
+  IconFileOff,
+  IconGitFork
 } from '@tabler/icons';
 import OpenAPISyncIcon from 'components/Icons/OpenAPISync';
 import { switchWorkspace, renameWorkspaceAction, exportWorkspaceAction, confirmWorkspaceCreation, cancelWorkspaceCreation } from 'providers/ReduxStore/slices/workspaces/actions';
@@ -32,6 +33,7 @@ import EnvironmentSelector from 'components/Environments/EnvironmentSelector';
 import ToolHint from 'components/ToolHint';
 import JsSandboxMode from 'components/SecuritySettings/JsSandboxMode';
 import ActionIcon from 'ui/ActionIcon';
+import Modal from 'components/Modal';
 import { getRevealInFolderLabel } from 'utils/common/platform';
 import { normalizePath } from 'utils/common/path';
 import classNames from 'classnames';
@@ -116,6 +118,96 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
   }, [isRenamingWorkspace, handleCancelWorkspaceRename, currentWorkspace?.isCreating]);
 
   const collectionUpdates = useSelector((state) => state.openapiSync?.collectionUpdates || {});
+
+  const getDefaultGitState = () => ({
+    isGitRepository: false,
+    gitRootPath: null,
+    currentGitBranch: '',
+    changedFilesCount: 0,
+    hasChanges: false
+  });
+
+  const [gitState, setGitState] = useState(getDefaultGitState());
+  const [isGitLoading, setIsGitLoading] = useState(false);
+  const [showGitInitConfirm, setShowGitInitConfirm] = useState(false);
+
+  const refreshGitState = useCallback(async () => {
+    if (!collection?.pathname || !window?.ipcRenderer?.invoke) {
+      setGitState(getDefaultGitState());
+      return;
+    }
+
+    try {
+      const nextState = await window.ipcRenderer.invoke('renderer:get-collection-git-menu-state', {
+        collectionPath: collection.pathname
+      });
+      setGitState(nextState || getDefaultGitState());
+    } catch (err) {
+      console.error('Error reading Git state for collection header:', err);
+      setGitState(getDefaultGitState());
+    }
+  }, [collection?.pathname]);
+
+  useEffect(() => {
+    refreshGitState();
+  }, [refreshGitState]);
+
+  const handleGitButtonClick = async () => {
+    if (!collection?.pathname || !window?.ipcRenderer?.invoke || isGitLoading) return;
+
+    if (!gitState.isGitRepository) {
+      setShowGitInitConfirm(true);
+      return;
+    }
+
+    setIsGitLoading(true);
+
+    try {
+      const nextState = await window.ipcRenderer.invoke('renderer:get-collection-git-menu-state', {
+        collectionPath: collection.pathname
+      });
+      setGitState(nextState || getDefaultGitState());
+
+      const branchText = nextState?.currentGitBranch ? `on ${nextState.currentGitBranch}` : 'in repository';
+      const changesText = nextState?.hasChanges
+        ? `${nextState.changedFilesCount} changed file${nextState.changedFilesCount === 1 ? '' : 's'}`
+        : 'No changes';
+      toast.success(`Git ${branchText}, ${changesText}`);
+    } catch (err) {
+      toast.error(err?.message || 'Git action failed');
+    } finally {
+      setIsGitLoading(false);
+    }
+  };
+
+  const handleConfirmGitInit = async () => {
+    if (!collection?.pathname || !window?.ipcRenderer?.invoke || isGitLoading) return;
+    setShowGitInitConfirm(false);
+    setIsGitLoading(true);
+
+    try {
+      const nextState = await window.ipcRenderer.invoke('renderer:init-collection-git', {
+        collectionPath: collection.pathname
+      });
+      setGitState(nextState || getDefaultGitState());
+      toast.success('Git initialized');
+    } catch (err) {
+      toast.error(err?.message || 'Git action failed');
+    } finally {
+      setIsGitLoading(false);
+    }
+  };
+
+  const gitButtonLabel = isGitLoading
+    ? 'Git...'
+    : gitState.isGitRepository
+      ? (gitState.currentGitBranch || 'Git')
+      : 'Init?';
+
+  const gitButtonTooltip = gitState.isGitRepository
+    ? `${gitState.currentGitBranch || 'Branch unknown'} · ${gitState.hasChanges ? `${gitState.changedFilesCount} changed file${gitState.changedFilesCount === 1 ? '' : 's'}` : 'Clean'}`
+    : 'Git is not initialized. Click to initialize a repository.';
+
   const { theme } = useTheme();
 
   if (!collection) {
@@ -425,6 +517,23 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
         <CreateWorkspace onClose={handleAdvancedCreateClose} />
       )}
 
+      {showGitInitConfirm && (
+        <Modal
+          size="sm"
+          title="Initialize Git Repository"
+          confirmText="Initialize"
+          cancelText="Cancel"
+          handleConfirm={handleConfirmGitInit}
+          handleCancel={() => setShowGitInitConfirm(false)}
+          dataTestId="git-init-confirm-modal"
+        >
+          <div>
+            <p>Initialize a new Git repository for this collection?</p>
+            <p className="mt-2 text-sm text-gray-500">This will create a repository in the collection folder.</p>
+          </div>
+        </Modal>
+      )}
+
       <div className="flex items-center justify-between gap-2 py-2 px-4">
         {/* Left side: Switcher dropdown or rename input */}
         <div className="collection-switcher">
@@ -607,6 +716,34 @@ const CollectionHeader = ({ collection, isScratchCollection }) => {
             </ToolHint>
             {/* JS Sandbox Mode - always visible */}
             <JsSandboxMode collection={collection} />
+            {collection?.pathname && (
+              <ToolHint
+                text={gitButtonTooltip}
+                toolhintId="GitStatusToolhintId"
+                place="bottom"
+              >
+                <button
+                  type="button"
+                  className={classNames('git-status-button', {
+                    'no-git': !gitState.isGitRepository,
+                    'has-changes': gitState.hasChanges
+                  })}
+                  onClick={handleGitButtonClick}
+                  disabled={isGitLoading}
+                  aria-busy={isGitLoading}
+                  aria-label={`Git status ${gitButtonLabel}`}
+                  data-testid="git-status-button"
+                >
+                  {isGitLoading ? (
+                    <span className="git-spinner" aria-hidden="true" />
+                  ) : (
+                    <IconGitFork size={14} strokeWidth={1.5} className="git-icon" />
+                  )}
+                  <span className="git-status-label">{gitButtonLabel}</span>
+                  {gitState.hasChanges && <span className="git-status-indicator" />}
+                </button>
+              </ToolHint>
+            )}
             {/* Overflow menu */}
             <MenuDropdown items={overflowMenuItems} placement="bottom-end" data-testid="more-actions">
               <ActionIcon label="More actions" size="sm" style={{ border: `1px solid ${theme.border.border1}`, borderRadius: theme.border.radius.base, width: 24, marginRight: 4, marginLeft: 4 }}>

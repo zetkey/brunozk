@@ -13,7 +13,8 @@ import {
   IconSortDescendingLetters,
   IconSquareX,
   IconBox,
-  IconTerminal2
+  IconTerminal2,
+  IconBrandGit
 } from '@tabler/icons';
 
 import { importCollection, openCollection, importCollectionFromZip, newHttpRequest } from 'providers/ReduxStore/slices/collections/actions';
@@ -251,6 +252,15 @@ const CollectionsSection = () => {
       label: 'Create collection',
       onClick: () => {
         dispatch(setIsCreatingCollection(true));
+      }
+    },
+    {
+      id: 'git-clone',
+      leftSection: IconBrandGit,
+      label: 'Git Clone',
+      onClick: () => {
+        setGitRepositoryUrl(null);
+        setShowCloneGitModal(true);
       }
     },
     {

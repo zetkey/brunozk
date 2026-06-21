@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { getEmptyImage } from 'react-dnd-html5-backend';
 import classnames from 'classnames';
 import { uuid } from 'utils/common';
@@ -21,7 +21,11 @@ import {
   IconTerminal2,
   IconFolder,
   IconBook,
-  IconFileArrowRight
+  IconFileArrowRight,
+  IconGitFork,
+  IconUpload,
+  IconDownload,
+  IconAlertTriangle
 } from '@tabler/icons';
 import OpenAPISyncIcon from 'components/Icons/OpenAPISync';
 import { toggleCollection, collapseFullCollection } from 'providers/ReduxStore/slices/collections';
@@ -43,6 +47,8 @@ import { isTabForItemActive } from 'src/selectors/tab';
 import RenameCollection from './RenameCollection';
 import StyledWrapper from './StyledWrapper';
 import CloneCollection from './CloneCollection';
+import GitCommitCollection from './GitCommitCollection';
+import GitConflictsCollection from './GitConflictsCollection';
 import { scrollToTheActiveTab } from 'utils/tabs';
 import ShareCollection from 'components/ShareCollection/index';
 import GenerateDocumentation from './GenerateDocumentation';
@@ -66,6 +72,14 @@ const Collection = ({ collection, searchText }) => {
   const [showNewRequestModal, setShowNewRequestModal] = useState(false);
   const [showRenameCollectionModal, setShowRenameCollectionModal] = useState(false);
   const [showCloneCollectionModalOpen, setShowCloneCollectionModalOpen] = useState(false);
+  const [showGitCommitModal, setShowGitCommitModal] = useState(false);
+  const [showGitConflictsModal, setShowGitConflictsModal] = useState(false);
+  const [gitMenuState, setGitMenuState] = useState({
+    isGitRepository: false,
+    hasChanges: false,
+    changedFilesCount: 0,
+    conflictFilesCount: 0
+  });
   const [showShareCollectionModal, setShowShareCollectionModal] = useState(false);
   const [showGenerateDocumentationModal, setShowGenerateDocumentationModal] = useState(false);
   const [showRemoveCollectionModal, setShowRemoveCollectionModal] = useState(false);
@@ -212,6 +226,104 @@ const Collection = ({ collection, searchText }) => {
       });
   };
 
+  const getDefaultGitMenuState = () => ({
+    isGitRepository: false,
+    hasChanges: false,
+    changedFilesCount: 0,
+    conflictFilesCount: 0
+  });
+
+  const refreshGitMenuState = useCallback(async () => {
+    if (!collection.pathname || !window?.ipcRenderer?.invoke) {
+      setGitMenuState(getDefaultGitMenuState());
+      return;
+    }
+
+    try {
+      const nextGitMenuState = await window.ipcRenderer.invoke('renderer:get-collection-git-menu-state', {
+        collectionPath: collection.pathname
+      });
+      setGitMenuState(nextGitMenuState || getDefaultGitMenuState());
+    } catch (err) {
+      console.error('Error reading Git state for collection:', err);
+      setGitMenuState(getDefaultGitMenuState());
+    }
+  }, [collection.pathname]);
+
+  useEffect(() => {
+    refreshGitMenuState();
+  }, [refreshGitMenuState]);
+
+  const handleGitStatus = async () => {
+    try {
+      const nextGitMenuState = await window.ipcRenderer.invoke('renderer:get-collection-git-menu-state', {
+        collectionPath: collection.pathname
+      });
+      setGitMenuState(nextGitMenuState || getDefaultGitMenuState());
+
+      if (!nextGitMenuState?.isGitRepository) {
+        toast.error('Collection is not inside a Git repository');
+        return;
+      }
+
+      const branchLabel = nextGitMenuState.currentGitBranch ? ` on ${nextGitMenuState.currentGitBranch}` : '';
+      const changesLabel = nextGitMenuState.changedFilesCount === 1 ? '1 changed file' : `${nextGitMenuState.changedFilesCount || 0} changed files`;
+      const conflictsLabel = nextGitMenuState.conflictFilesCount
+        ? `, ${nextGitMenuState.conflictFilesCount} unresolved conflict${nextGitMenuState.conflictFilesCount === 1 ? '' : 's'}`
+        : '';
+      toast.success(`Git status${branchLabel}: ${changesLabel}${conflictsLabel}`);
+    } catch (err) {
+      toast.error(err?.message || 'Could not read Git status');
+    }
+  };
+
+  const handleGitPull = async () => {
+    try {
+      await window.ipcRenderer.invoke('renderer:pull-collection-git', {
+        collectionPath: collection.pathname
+      });
+      toast.success('Git fetch up completed');
+      refreshGitMenuState();
+    } catch (err) {
+      toast.error(err?.message || 'Git fetch up failed');
+      refreshGitMenuState();
+    }
+  };
+
+  const handleGitPush = async () => {
+    try {
+      await window.ipcRenderer.invoke('renderer:push-collection-git', {
+        collectionPath: collection.pathname
+      });
+      toast.success('Git push completed');
+      refreshGitMenuState();
+    } catch (err) {
+      toast.error(err?.message || 'Git push failed');
+      refreshGitMenuState();
+    }
+  };
+
+  const handleOpenMergeRequest = async () => {
+    try {
+      await window.ipcRenderer.invoke('renderer:open-collection-merge-request', {
+        collectionPath: collection.pathname
+      });
+    } catch (err) {
+      toast.error(err?.message || 'Could not open merge request');
+    }
+  };
+
+  const handleViewGitConflicts = () => {
+    setShowGitConflictsModal(true);
+  };
+
+  const handleGitCommitModalClose = (result) => {
+    setShowGitCommitModal(false);
+    if (result?.refreshGitState) {
+      refreshGitMenuState();
+    }
+  };
+
   // Sidebar shortcuts — only active when this collection has keyboard focus
   useKeybinding('cloneItem', () => {
     setShowCloneCollectionModalOpen(true);
@@ -335,6 +447,53 @@ const Collection = ({ collection, searchText }) => {
 
   const emptyStateMenuItems = createEmptyStateMenuItems({ dispatch, collection, itemUid: null });
 
+  const gitMenuItems = gitMenuState?.isGitRepository
+    ? [
+        {
+          id: 'git-status',
+          leftSection: IconTerminal2,
+          label: gitMenuState.changedFilesCount
+            ? `Status (${gitMenuState.changedFilesCount})`
+            : 'Status',
+          onClick: handleGitStatus
+        },
+        {
+          id: 'git-commit',
+          leftSection: IconEdit,
+          label: 'Commit',
+          onClick: () => {
+            setShowGitCommitModal(true);
+          }
+        },
+        {
+          id: 'git-pull',
+          leftSection: IconDownload,
+          label: gitMenuState.currentGitBranch ? `Fetch Up (${gitMenuState.currentGitBranch})` : 'Fetch Up',
+          onClick: handleGitPull
+        },
+        {
+          id: 'git-push',
+          leftSection: IconUpload,
+          label: gitMenuState.currentGitBranch ? `Push (${gitMenuState.currentGitBranch})` : 'Push',
+          onClick: handleGitPush
+        },
+        {
+          id: 'git-merge-request',
+          leftSection: IconShare,
+          label: 'Merge Request',
+          onClick: handleOpenMergeRequest
+        },
+        {
+          id: 'git-view-conflicts',
+          leftSection: IconAlertTriangle,
+          label: gitMenuState.conflictFilesCount
+            ? `View Conflicts (${gitMenuState.conflictFilesCount})`
+            : 'View Conflicts',
+          onClick: handleViewGitConflicts
+        }
+      ]
+    : [];
+
   const menuItems = [
     {
       id: 'new-request',
@@ -426,6 +585,20 @@ const Collection = ({ collection, searchText }) => {
       label: getRevealInFolderLabel(),
       onClick: handleShowInFolder
     },
+    ...(gitMenuState?.isGitRepository
+      ? [
+          {
+            id: 'divider-git',
+            type: 'divider'
+          },
+          {
+            id: 'git',
+            leftSection: IconGitFork,
+            label: 'Git',
+            submenu: gitMenuItems
+          }
+        ]
+      : []),
     {
       id: 'divider-1',
       type: 'divider'
@@ -489,6 +662,18 @@ const Collection = ({ collection, searchText }) => {
       )}
       {showCloneCollectionModalOpen && (
         <CloneCollection collectionUid={collection.uid} onClose={() => setShowCloneCollectionModalOpen(false)} />
+      )}
+      {showGitCommitModal && (
+        <GitCommitCollection collectionPathname={collection.pathname} onClose={handleGitCommitModalClose} />
+      )}
+      {showGitConflictsModal && (
+        <GitConflictsCollection
+          collectionPathname={collection.pathname}
+          onClose={() => {
+            setShowGitConflictsModal(false);
+            refreshGitMenuState();
+          }}
+        />
       )}
       <CollectionItemDragPreview />
       <div

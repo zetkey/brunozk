@@ -95,14 +95,25 @@ const config = {
     artifactName: '${name}_${version}_${arch}_win.${ext}',
     icon: 'resources/icons/win/icon.ico',
     target: [
+      //      {
+      //        target: 'nsis',
+      //        arch: ['x64', 'arm64']
+      //      }
       {
-        target: 'nsis',
-        arch: ['x64', 'arm64']
+        target: 'portable',
+        //          arch: ['ia32']
+        arch: ['ia32', 'x64']
       }
     ],
     sign: null,
     publisherName: 'Bruno Software Inc'
   },
+
+  portable: {
+    artifactName: '${productName}-${version}-win-ia32-portable.${ext}',
+    requestExecutionLevel: 'user'
+  },
+
   nsis: {
     include: 'resources/installer.nsh',
     oneClick: false,
