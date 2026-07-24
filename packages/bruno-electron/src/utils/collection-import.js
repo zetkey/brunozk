@@ -27,8 +27,8 @@ async function findUniqueFolderName(baseName, collectionLocation, counter = 0) {
  */
 async function importCollection(collection, collectionLocation, mainWindow, uniqueFolderName = null, format = DEFAULT_COLLECTION_FORMAT, options = {}) {
   // Use provided unique folder name or use collection name
-  let folderName = uniqueFolderName ? sanitizeName(uniqueFolderName) : sanitizeName(collection.name);
-  let collectionPath = path.join(collectionLocation, folderName);
+  const folderName = uniqueFolderName ? sanitizeName(uniqueFolderName) : sanitizeName(collection.name);
+  const collectionPath = path.join(collectionLocation, folderName);
 
   if (fs.existsSync(collectionPath)) {
     throw new Error(`collection: ${collectionPath} already exists`);
@@ -38,13 +38,13 @@ async function importCollection(collection, collectionLocation, mainWindow, uniq
   const parseCollectionItems = async (items = [], currentPath) => {
     for (const item of items) {
       if (['http-request', 'graphql-request', 'grpc-request'].includes(item.type)) {
-        let sanitizedFilename = sanitizeName(item.filename || `${item.name}.${format}`);
+        const sanitizedFilename = sanitizeName(item.filename || `${item.name}.${format}`);
         const content = await stringifyRequestViaWorker(item, { format });
         const filePath = path.join(currentPath, sanitizedFilename);
         safeWriteFileSync(filePath, content);
       }
       if (item.type === 'folder') {
-        let sanitizedFolderName = sanitizeName(item.filename || item.name);
+        const sanitizedFolderName = sanitizeName(item.filename || item.name);
         const folderPath = path.join(currentPath, sanitizedFolderName);
         fs.mkdirSync(folderPath);
 
@@ -61,7 +61,7 @@ async function importCollection(collection, collectionLocation, mainWindow, uniq
       }
       // Handle items of type 'js'
       if (item.type === 'js') {
-        let sanitizedFilename = sanitizeName(item.filename || `${item.name}.js`);
+        const sanitizedFilename = sanitizeName(item.filename || `${item.name}.js`);
         const filePath = path.join(currentPath, sanitizedFilename);
         safeWriteFileSync(filePath, item.fileContent);
       }
@@ -76,7 +76,7 @@ async function importCollection(collection, collectionLocation, mainWindow, uniq
 
     for (const env of environments) {
       const content = await stringifyEnvironment(env, { format });
-      let sanitizedEnvFilename = sanitizeName(`${env.name}.${format}`);
+      const sanitizedEnvFilename = sanitizeName(`${env.name}.${format}`);
       const filePath = path.join(envDirPath, sanitizedEnvFilename);
       safeWriteFileSync(filePath, content);
     }
@@ -87,7 +87,6 @@ async function importCollection(collection, collectionLocation, mainWindow, uniq
 
     if (!brunoConfig) {
       brunoConfig = {
-        version: '1',
         name: collection.name,
         type: 'collection',
         ignore: ['node_modules', '.git']
@@ -104,13 +103,20 @@ async function importCollection(collection, collectionLocation, mainWindow, uniq
   await createDirectory(collectionPath);
 
   const uid = generateUidBasedOnHash(collectionPath);
-  let brunoConfig = getBrunoJsonConfig(collection);
+  const brunoConfig = getBrunoJsonConfig(collection);
 
   if (format === 'yml') {
+    brunoConfig.opencollection = '1.0.0';
     const collectionContent = await stringifyCollection(collection.root, brunoConfig, { format });
     await writeFile(path.join(collectionPath, 'opencollection.yml'), collectionContent);
   } else if (format === 'bru') {
-    const stringifiedBrunoConfig = await stringifyJson(brunoConfig);
+    const bruJsonConfig = { ...brunoConfig, version: '1' };
+    if (brunoConfig.version) {
+      bruJsonConfig.collectionVersion = brunoConfig.version;
+    } else {
+      delete bruJsonConfig.collectionVersion;
+    }
+    const stringifiedBrunoConfig = await stringifyJson(bruJsonConfig);
     await writeFile(path.join(collectionPath, 'bruno.json'), stringifiedBrunoConfig);
 
     const collectionContent = await stringifyCollection(collection.root, brunoConfig, { format });

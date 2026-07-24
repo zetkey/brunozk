@@ -137,10 +137,10 @@ const getCredentialsFromTokenUrl = async ({ requestConfig, certsAndProxyConfig }
 // AUTHORIZATION CODE
 
 const getOAuth2TokenUsingAuthorizationCode = async ({ request, collectionUid, forceFetch = false, certsAndProxyConfigForTokenUrl, certsAndProxyConfigForRefreshUrl }) => {
-  let codeVerifier = generateCodeVerifier();
-  let codeChallenge = generateCodeChallenge(codeVerifier);
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(codeVerifier);
 
-  let requestCopy = cloneDeep(request);
+  const requestCopy = cloneDeep(request);
   const oAuth = get(requestCopy, 'oauth2', {});
   const {
     clientId,
@@ -251,7 +251,7 @@ const getOAuth2TokenUsingAuthorizationCode = async ({ request, collectionUid, fo
   // Fetch new token process
   let { authorizationCode, debugInfo } = await getOAuth2AuthorizationCode(requestCopy, codeChallenge, collectionUid);
 
-  let axiosRequestConfig = {};
+  const axiosRequestConfig = {};
   axiosRequestConfig.method = 'POST';
   axiosRequestConfig.headers = {
     'content-type': 'application/x-www-form-urlencoded',
@@ -308,6 +308,10 @@ const getOAuth2AuthorizationCode = (request, codeChallenge, collectionUid) => {
     const { callbackUrl, clientId, authorizationUrl, scope, state, pkce, accessTokenUrl, additionalParameters } = oauth2;
     const useSystemBrowser = preferencesUtil.shouldUseSystemBrowser();
     const effectiveCallbackUrl = callbackUrl && callbackUrl.length ? callbackUrl : BRUNO_OAUTH2_CALLBACK_URL;
+    // Always append a cryptographically random nonce to the user-configured state
+    // (or generate a fully random one when none is set). The state is validated when
+    // the callback is received to prevent authorization code injection / CSRF.
+    const effectiveState = generateState({ userState: state });
 
     const authorizationUrlWithQueryParams = new URL(authorizationUrl);
     authorizationUrlWithQueryParams.searchParams.append('response_type', 'code');
@@ -324,8 +328,8 @@ const getOAuth2AuthorizationCode = (request, codeChallenge, collectionUid) => {
       authorizationUrlWithQueryParams.searchParams.append('code_challenge', codeChallenge);
       authorizationUrlWithQueryParams.searchParams.append('code_challenge_method', 'S256');
     }
-    if (state) {
-      authorizationUrlWithQueryParams.searchParams.append('state', state);
+    if (effectiveState) {
+      authorizationUrlWithQueryParams.searchParams.append('state', effectiveState);
     }
     if (additionalParameters?.authorization?.length) {
       additionalParameters.authorization.forEach((param) => {
@@ -344,6 +348,7 @@ const getOAuth2AuthorizationCode = (request, codeChallenge, collectionUid) => {
         authorizeUrl,
         callbackUrl: effectiveCallbackUrl,
         session: oauth2Store.getSessionIdOfCollection({ collectionUid, url: accessTokenUrl }),
+        expectedState: effectiveState,
         additionalHeaders: getAdditionalHeaders(additionalParameters?.authorization)
       });
       resolve({ authorizationCode, debugInfo });
@@ -371,7 +376,7 @@ const getAdditionalHeaders = (params) => {
 // CLIENT CREDENTIALS
 
 const getOAuth2TokenUsingClientCredentials = async ({ request, collectionUid, forceFetch = false, certsAndProxyConfigForTokenUrl, certsAndProxyConfigForRefreshUrl }) => {
-  let requestCopy = cloneDeep(request);
+  const requestCopy = cloneDeep(request);
   const oAuth = get(requestCopy, 'oauth2', {});
   const {
     clientId,
@@ -457,7 +462,7 @@ const getOAuth2TokenUsingClientCredentials = async ({ request, collectionUid, fo
   }
 
   // Fetch new token process
-  let axiosRequestConfig = {};
+  const axiosRequestConfig = {};
   axiosRequestConfig.method = 'POST';
   axiosRequestConfig.headers = {
     'content-type': 'application/x-www-form-urlencoded',
@@ -485,7 +490,7 @@ const getOAuth2TokenUsingClientCredentials = async ({ request, collectionUid, fo
     applyAdditionalParameters(axiosRequestConfig, data, additionalParameters.token);
   }
   axiosRequestConfig.data = qs.stringify(data);
-  let debugInfo = { data: [] };
+  const debugInfo = { data: [] };
   try {
     const { credentials, requestDetails } = await getCredentialsFromTokenUrl({ requestConfig: axiosRequestConfig, certsAndProxyConfig: certsAndProxyConfigForTokenUrl });
     debugInfo.data.push(requestDetails);
@@ -499,7 +504,7 @@ const getOAuth2TokenUsingClientCredentials = async ({ request, collectionUid, fo
 // PASSWORD CREDENTIALS
 
 const getOAuth2TokenUsingPasswordCredentials = async ({ request, collectionUid, forceFetch = false, certsAndProxyConfigForTokenUrl, certsAndProxyConfigForRefreshUrl }) => {
-  let requestCopy = cloneDeep(request);
+  const requestCopy = cloneDeep(request);
   const oAuth = get(requestCopy, 'oauth2', {});
   const {
     username,
@@ -605,7 +610,7 @@ const getOAuth2TokenUsingPasswordCredentials = async ({ request, collectionUid, 
   }
 
   // Fetch new token process
-  let axiosRequestConfig = {};
+  const axiosRequestConfig = {};
   axiosRequestConfig.method = 'POST';
   axiosRequestConfig.headers = {
     'content-type': 'application/x-www-form-urlencoded',
@@ -635,7 +640,7 @@ const getOAuth2TokenUsingPasswordCredentials = async ({ request, collectionUid, 
     applyAdditionalParameters(axiosRequestConfig, data, additionalParameters.token);
   }
   axiosRequestConfig.data = qs.stringify(data);
-  let debugInfo = { data: [] };
+  const debugInfo = { data: [] };
   try {
     const { credentials, requestDetails } = await getCredentialsFromTokenUrl({ requestConfig: axiosRequestConfig, certsAndProxyConfig: certsAndProxyConfigForTokenUrl });
     debugInfo.data.push(requestDetails);
@@ -667,7 +672,7 @@ const refreshOauth2Token = async ({ requestCopy, collectionUid, certsAndProxyCon
     if (clientSecret && clientSecret.trim() !== '' && credentialsPlacement !== 'basic_auth_header') {
       data.client_secret = clientSecret;
     }
-    let axiosRequestConfig = {};
+    const axiosRequestConfig = {};
     axiosRequestConfig.method = 'POST';
     axiosRequestConfig.headers = {
       'content-type': 'application/x-www-form-urlencoded',
@@ -683,7 +688,7 @@ const refreshOauth2Token = async ({ requestCopy, collectionUid, certsAndProxyCon
       applyAdditionalParameters(axiosRequestConfig, data, additionalParameters.refresh);
     }
     axiosRequestConfig.data = qs.stringify(data);
-    let debugInfo = { data: [] };
+    const debugInfo = { data: [] };
     try {
       const { credentials, requestDetails } = await getCredentialsFromTokenUrl({ requestConfig: axiosRequestConfig, certsAndProxyConfig });
       debugInfo.data.push(requestDetails);
@@ -705,6 +710,18 @@ const refreshOauth2Token = async ({ requestCopy, collectionUid, certsAndProxyCon
 
 const generateCodeVerifier = () => {
   return crypto.randomBytes(22).toString('hex');
+};
+
+// Build an OAuth2 state string to help prevent CSRF and forged auth codes.
+// If the user passes a state, it goes first; we append random bytes after it.
+// The user keeps their custom data, and the random suffix keeps the flow secure.
+const generateState = ({ userState }) => {
+  const trimmedUserState = userState?.trim();
+  if (trimmedUserState && trimmedUserState.length > 0) {
+    return trimmedUserState;
+  }
+  const cryptographicallyRandomString = crypto.randomBytes(16).toString('hex');
+  return cryptographicallyRandomString;
 };
 
 const generateCodeChallenge = (codeVerifier) => {
@@ -731,7 +748,7 @@ const applyAdditionalParameters = (requestCopy, data, params = []) => {
       case 'queryparams':
         // For query params, add to URL
         try {
-          let url = new URL(requestCopy.url);
+          const url = new URL(requestCopy.url);
           url.searchParams.append(param.name, param.value || '');
           requestCopy.url = url.href;
         } catch (error) {
@@ -760,6 +777,9 @@ const getOAuth2TokenUsingImplicitGrant = async ({ request, collectionUid, forceF
   } = oauth2;
   const useSystemBrowser = preferencesUtil.shouldUseSystemBrowser();
   const effectiveCallbackUrl = callbackUrl && callbackUrl.length ? callbackUrl : BRUNO_OAUTH2_CALLBACK_URL;
+  // Use the user-configured state if present, otherwise generate a cryptographically
+  // random one. The state is validated when the callback is received to prevent CSRF.
+  const effectiveState = generateState({ userState: state });
 
   // Validate required fields
   if (!authorizationUrl) {
@@ -844,9 +864,8 @@ const getOAuth2TokenUsingImplicitGrant = async ({ request, collectionUid, forceF
   if (scope) {
     authorizationUrlWithQueryParams.searchParams.append('scope', scope);
   }
-  if (state) {
-    authorizationUrlWithQueryParams.searchParams.append('state', state);
-  }
+  authorizationUrlWithQueryParams.searchParams.append('state', effectiveState);
+
   if (additionalParameters?.authorization?.length) {
     additionalParameters.authorization.forEach((param) => {
       if (param.enabled && param.name) {
@@ -866,6 +885,7 @@ const getOAuth2TokenUsingImplicitGrant = async ({ request, collectionUid, forceF
       callbackUrl: effectiveCallbackUrl,
       session: oauth2Store.getSessionIdOfCollection({ collectionUid, url: authorizationUrl }),
       grantType: 'implicit',
+      expectedState: effectiveState,
       additionalHeaders: getAdditionalHeaders(additionalParameters?.authorization)
     });
 
@@ -954,5 +974,6 @@ module.exports = {
   refreshOauth2Token,
   generateCodeVerifier,
   generateCodeChallenge,
+  generateState,
   updateCollectionOauth2Credentials
 };

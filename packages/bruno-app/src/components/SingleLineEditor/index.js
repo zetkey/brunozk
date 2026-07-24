@@ -156,7 +156,7 @@ class SingleLineEditor extends Component {
     // event loop.
     this.ignoreChangeEvent = true;
 
-    let variables = getAllVariables(this.props.collection, this.props.item);
+    const variables = getAllVariables(this.props.collection, this.props.item);
     if (!isEqual(variables, this.variables)) {
       if (this.props.enableBrunoVarInfo !== false && this.editor.options.brunoVarInfo) {
         this.editor.options.brunoVarInfo.variables = variables;
@@ -302,7 +302,7 @@ class SingleLineEditor extends Component {
    */
   secretEye = (isSecret) => {
     return isSecret === true ? (
-      <button type="button" className="mx-2" onClick={() => this.toggleVisibleSecret()}>
+      <button type="button" className="mx-2" data-testid="secret-reveal-toggle" onClick={() => this.toggleVisibleSecret()}>
         {this.state.maskInput === true ? (
           <IconEyeOff size={18} strokeWidth={2} />
         ) : (

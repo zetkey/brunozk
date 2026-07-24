@@ -17,7 +17,8 @@ export function useTabPaneBoundaries(activeTabUid) {
   const tabs = useSelector((state) => state.tabs.tabs);
   const focusedTab = find(tabs, (t) => t.uid === activeTabUid);
   const screenWidth = useSelector((state) => state.app.screenWidth);
-  let asideWidth = useSelector((state) => state.app.leftSidebarWidth);
+  const asideWidth = useSelector((state) => state.app.leftSidebarWidth);
+  const isSidebarHidden = useSelector((state) => state.app.sidebarCollapsed);
   const left = focusedTab && focusedTab.requestPaneWidth ? focusedTab.requestPaneWidth : (screenWidth - asideWidth) / DEFAULT_PANE_WIDTH_DIVISOR;
   const top = focusedTab?.requestPaneHeight || MIN_TOP_PANE_HEIGHT;
   const requestPaneCollapsed = focusedTab?.requestPaneCollapsed || false;
@@ -55,6 +56,7 @@ export function useTabPaneBoundaries(activeTabUid) {
       dispatch(expandResponsePane({ uid: activeTabUid }));
     },
     reset() {
+      const usableAsideWidth = isSidebarHidden ? 0 : asideWidth;
       dispatch(expandRequestPane({ uid: activeTabUid }));
       dispatch(expandResponsePane({ uid: activeTabUid }));
       dispatch(updateRequestPaneTabHeight({
@@ -63,7 +65,7 @@ export function useTabPaneBoundaries(activeTabUid) {
       }));
       dispatch(updateRequestPaneTabWidth({
         uid: activeTabUid,
-        requestPaneWidth: (screenWidth - asideWidth) / DEFAULT_PANE_WIDTH_DIVISOR
+        requestPaneWidth: (screenWidth - usableAsideWidth) / DEFAULT_PANE_WIDTH_DIVISOR
       }));
     }
   };

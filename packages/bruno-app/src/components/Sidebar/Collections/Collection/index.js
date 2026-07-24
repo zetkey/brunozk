@@ -25,7 +25,8 @@ import {
   IconGitFork,
   IconUpload,
   IconDownload,
-  IconAlertTriangle
+  IconAlertTriangle,
+  IconAppWindow
 } from '@tabler/icons';
 import OpenAPISyncIcon from 'components/Icons/OpenAPISync';
 import { toggleCollection, collapseFullCollection } from 'providers/ReduxStore/slices/collections';
@@ -36,6 +37,7 @@ import { setFocusedSidebarPath } from 'providers/ReduxStore/slices/app';
 import toast from 'react-hot-toast';
 import NewRequest from 'components/Sidebar/NewRequest';
 import NewFolder from 'components/Sidebar/NewFolder';
+import NewApp from 'components/Sidebar/NewApp';
 import CollectionItem from './CollectionItem';
 import RemoveCollection from './RemoveCollection';
 import MoveToWorkspace from './MoveToWorkspace';
@@ -70,6 +72,7 @@ const Collection = ({ collection, searchText }) => {
   const { dropdownContainerRef } = useSidebarAccordion();
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [showNewRequestModal, setShowNewRequestModal] = useState(false);
+  const [showNewAppModal, setShowNewAppModal] = useState(false);
   const [showRenameCollectionModal, setShowRenameCollectionModal] = useState(false);
   const [showCloneCollectionModalOpen, setShowCloneCollectionModalOpen] = useState(false);
   const [showGitCommitModal, setShowGitCommitModal] = useState(false);
@@ -92,7 +95,7 @@ const Collection = ({ collection, searchText }) => {
   const collectionRef = useRef(null);
   // Only count persisted requests and folders; transients and file items
   // (bruno.json, .js scripts) don't affect empty state
-  const itemCount = collection.items?.filter((i) => !i.isTransient && (isItemARequest(i) || isItemAFolder(i))).length || 0;
+  const itemCount = collection.items?.filter((i) => !i.isTransient && (isItemARequest(i) || isItemAFolder(i) || i.type === 'app')).length || 0;
 
   const isCollectionFocused = useSelector(isTabForItemActive({ itemUid: collection.uid }));
   const { hasCopiedItems } = useSelector((state) => state.app.clipboard);
@@ -340,6 +343,11 @@ const Collection = ({ collection, searchText }) => {
     return false;
   }, { enabled: isKeyboardFocused, deps: [isKeyboardFocused] });
 
+  useKeybinding('newRequest', () => {
+    setShowNewRequestModal(true);
+    return false;
+  }, { enabled: isKeyboardFocused, deps: [isKeyboardFocused] });
+
   const handleFocus = () => {
     setIsKeyboardFocused(true);
     dispatch(setFocusedSidebarPath(collection.pathname));
@@ -442,6 +450,7 @@ const Collection = ({ collection, searchText }) => {
   };
 
   const requestItems = sortItemsBySequence(filter(collection.items, (i) => isItemARequest(i) && !i.isTransient));
+  const appItems = sortItemsBySequence(filter(collection.items, (i) => i.type === 'app' && !i.isTransient));
   const folderItems = sortByNameThenSequence(filter(collection.items, (i) => isItemAFolder(i) && !i.isTransient));
   const showEmptyCollectionMessage = showEmptyState && !hasSearchText;
 
@@ -511,6 +520,15 @@ const Collection = ({ collection, searchText }) => {
       onClick: () => {
         ensureCollectionIsMounted();
         setShowNewFolderModal(true);
+      }
+    },
+    {
+      id: 'new-app',
+      leftSection: IconAppWindow,
+      label: 'New App',
+      onClick: () => {
+        ensureCollectionIsMounted();
+        setShowNewAppModal(true);
       }
     },
     {
@@ -645,6 +663,7 @@ const Collection = ({ collection, searchText }) => {
     <StyledWrapper className="flex flex-col" id={`collection-${collection.name.replace(/\s+/g, '-').toLowerCase()}`}>
       {showNewRequestModal && <NewRequest collectionUid={collection.uid} onClose={() => setShowNewRequestModal(false)} />}
       {showNewFolderModal && <NewFolder collectionUid={collection.uid} onClose={() => setShowNewFolderModal(false)} />}
+      {showNewAppModal && <NewApp collectionUid={collection.uid} onClose={() => setShowNewAppModal(false)} />}
       {showRenameCollectionModal && (
         <RenameCollection collectionUid={collection.uid} onClose={() => setShowRenameCollectionModal(false)} />
       )}
@@ -729,6 +748,9 @@ const Collection = ({ collection, searchText }) => {
         {!collectionIsCollapsed ? (
           <div>
             {folderItems?.map?.((i) => {
+              return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.pathname} searchText={searchText} />;
+            })}
+            {appItems?.map?.((i) => {
               return <CollectionItem key={i.uid} item={i} collectionUid={collection.uid} collectionPathname={collection.pathname} searchText={searchText} />;
             })}
             {requestItems?.map?.((i) => {

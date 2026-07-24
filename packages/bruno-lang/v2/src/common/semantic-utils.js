@@ -12,7 +12,7 @@ const mapPairListToKeyValPairs = (pairList = [], parseEnabled = true) => {
   }
   return _.map(pairList[0], (pair) => {
     let name = _.keys(pair)[0];
-    let value = pair[name];
+    const value = pair[name];
 
     if (!parseEnabled) {
       return {
@@ -27,11 +27,13 @@ const mapPairListToKeyValPairs = (pairList = [], parseEnabled = true) => {
       enabled = false;
     }
 
-    return {
+    const result = {
       name,
       value,
       enabled
     };
+
+    return result;
   });
 };
 
@@ -47,19 +49,21 @@ const mapRequestParams = (pairList = [], type) => {
   }
   return _.map(pairList[0], (pair) => {
     let name = _.keys(pair)[0];
-    let value = pair[name];
+    const value = pair[name];
     let enabled = true;
     if (name && name.length && name.charAt(0) === '~') {
       name = name.slice(1);
       enabled = false;
     }
 
-    return {
+    const result = {
       name,
       value,
       enabled,
       type
     };
+
+    return result;
   });
 };
 
@@ -108,8 +112,8 @@ const mapPairListToKeyValPairsMultipart = (pairList = [], parseEnabled = true) =
     pair.type = 'text';
     multipartExtractContentType(pair);
 
-    if (pair.value.startsWith('@file(') && pair.value.endsWith(')')) {
-      let filestr = pair.value.replace(/^@file\(/, '').replace(/\)$/, '');
+    if (_.isString(pair.value) && pair.value.startsWith('@file(') && pair.value.endsWith(')')) {
+      const filestr = pair.value.replace(/^@file\(/, '').replace(/\)$/, '');
       pair.type = 'file';
       pair.value = filestr.split('|');
     }
@@ -130,7 +134,7 @@ const mapPairListToKeyValPairsFile = (pairList = [], parseEnabled = true) => {
     fileExtractContentType(pair);
 
     if (pair.value.startsWith('@file(') && pair.value.endsWith(')')) {
-      let filePath = pair.value.replace(/^@file\(/, '').replace(/\)$/, '');
+      const filePath = pair.value.replace(/^@file\(/, '').replace(/\)$/, '');
       pair.filePath = filePath;
       pair.selected = pair.enabled;
 

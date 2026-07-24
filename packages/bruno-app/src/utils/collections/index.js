@@ -1,6 +1,5 @@
 import { cloneDeep, isEqual, sortBy, filter, map, isString, findIndex, find, each, get } from 'lodash';
 import { uuid } from 'utils/common';
-import { buildPersistedEnvVariables } from 'utils/environments';
 import { sortByNameThenSequence } from 'utils/common/index';
 import path from 'utils/common/path';
 import { isRequestTagsIncluded } from '@usebruno/common';
@@ -96,18 +95,18 @@ export const findItemByPathname = (items = [], pathname) => {
 };
 
 export const findItemInCollectionByPathname = (collection, pathname) => {
-  let flattenedItems = flattenItems(collection.items);
+  const flattenedItems = flattenItems(collection.items);
 
   return findItemByPathname(flattenedItems, pathname);
 };
 
 export const findItemInCollectionByItemUid = (collection, itemUid) => {
-  let flattenedItems = flattenItems(collection.items);
+  const flattenedItems = flattenItems(collection.items);
   return findItem(flattenedItems, itemUid);
 };
 
 export const findParentItemInCollectionByPathname = (collection, pathname) => {
-  let flattenedItems = flattenItems(collection.items);
+  const flattenedItems = flattenItems(collection.items);
 
   return find(flattenedItems, (item) => {
     return item.items && find(item.items, (i) => i.pathname === pathname);
@@ -118,13 +117,13 @@ export const findItemInCollection = (collection, itemUid) => {
   if (!collection || !collection.items) {
     return null;
   }
-  let flattenedItems = flattenItems(collection.items);
+  const flattenedItems = flattenItems(collection.items);
 
   return findItem(flattenedItems, itemUid);
 };
 
 export const findParentItemInCollection = (collection, itemUid) => {
-  let flattenedItems = flattenItems(collection.items);
+  const flattenedItems = flattenItems(collection.items);
 
   return find(flattenedItems, (item) => {
     return item.items && find(item.items, (i) => i.uid === itemUid);
@@ -132,7 +131,7 @@ export const findParentItemInCollection = (collection, itemUid) => {
 };
 
 export const recursivelyGetAllItemUids = (items = []) => {
-  let flattenedItems = flattenItems(items);
+  const flattenedItems = flattenItems(items);
 
   return map(flattenedItems, (i) => i.uid);
 };
@@ -150,7 +149,7 @@ export const areItemsLoading = (folder) => {
     return true;
   }
 
-  let flattenedItems = flattenItems(folder.items);
+  const flattenedItems = flattenItems(folder.items);
   return flattenedItems?.reduce((isLoading, i) => {
     if (i?.loading) {
       isLoading = true;
@@ -161,7 +160,7 @@ export const areItemsLoading = (folder) => {
 
 export const getItemsLoadStats = (folder) => {
   let loadingCount = 0;
-  let flattenedItems = flattenItems(folder.items);
+  const flattenedItems = flattenItems(folder.items);
   flattenedItems?.forEach((i) => {
     if (i?.loading) {
       loadingCount += 1;
@@ -232,6 +231,7 @@ export const transformCollectionToSaveToExportAsFile = (collection, options = {}
         uid: param.uid,
         filePath: param.filePath,
         contentType: param.contentType,
+        description: param.description,
         selected: param.selected
       };
     });
@@ -406,7 +406,7 @@ export const transformCollectionToSaveToExportAsFile = (collection, options = {}
             };
             break;
           case 'oauth2':
-            let grantType = get(si.request, 'auth.oauth2.grantType', '');
+            const grantType = get(si.request, 'auth.oauth2.grantType', '');
             switch (grantType) {
               case 'password':
                 di.request.auth.oauth2 = {
@@ -498,6 +498,18 @@ export const transformCollectionToSaveToExportAsFile = (collection, options = {}
               password: get(si.request, 'auth.wsse.password', '')
             };
             break;
+          case 'akamai-edgegrid':
+            di.request.auth.akamaiEdgegrid = {
+              accessToken: get(si.request, 'auth.akamaiEdgegrid.accessToken', ''),
+              clientToken: get(si.request, 'auth.akamaiEdgegrid.clientToken', ''),
+              clientSecret: get(si.request, 'auth.akamaiEdgegrid.clientSecret', ''),
+              nonce: get(si.request, 'auth.akamaiEdgegrid.nonce', ''),
+              timestamp: get(si.request, 'auth.akamaiEdgegrid.timestamp', ''),
+              baseURL: get(si.request, 'auth.akamaiEdgegrid.baseURL', ''),
+              headersToSign: get(si.request, 'auth.akamaiEdgegrid.headersToSign', ''),
+              maxBodySize: get(si.request, 'auth.akamaiEdgegrid.maxBodySize', null)
+            };
+            break;
           default:
             break;
         }
@@ -527,8 +539,8 @@ export const transformCollectionToSaveToExportAsFile = (collection, options = {}
           request: {}
         };
 
-        let { request, meta, docs } = si?.root || {};
-        let { auth, headers, script = {}, vars = {}, tests } = request || {};
+        const { request, meta, docs } = si?.root || {};
+        const { auth, headers, script = {}, vars = {}, tests } = request || {};
 
         // folder level auth
         if (auth?.mode) {
@@ -603,18 +615,14 @@ export const transformCollectionToSaveToExportAsFile = (collection, options = {}
   collectionToSave.version = '1';
   collectionToSave.items = [];
   collectionToSave.activeEnvironmentUid = collection.activeEnvironmentUid;
-  // Save environments without runtime metadata (ephemeral/persistedValue)
-  collectionToSave.environments = (collection.environments || []).map((env) => ({
-    ...env,
-    variables: buildPersistedEnvVariables(env?.variables, { mode: 'save' })
-  }));
+  collectionToSave.environments = collection.environments || [];
 
   collectionToSave.root = {
     request: {}
   };
 
-  let { request, docs, meta } = collection?.root || {};
-  let { auth, headers, script = {}, vars = {}, tests } = request || {};
+  const { request, docs, meta } = collection?.root || {};
+  const { auth, headers, script = {}, vars = {}, tests } = request || {};
 
   // collection level auth
   if (auth?.mode) {
@@ -691,6 +699,19 @@ export const transformCollectionToSaveToExportAsFile = (collection, options = {}
 export const transformRequestToSaveToFilesystem = (item) => {
   const _item = item.draft ? item.draft : item;
 
+  // Standalone app items have no request, emit only what the filestore needs.
+  if (_item.type === 'app') {
+    return {
+      uid: _item.uid,
+      type: 'app',
+      name: _item.name,
+      seq: _item.seq,
+      tags: _item.tags,
+      settings: _item.settings,
+      app: { code: _item.app?.code || '' }
+    };
+  }
+
   // Transform examples to ensure status is a number
   const transformExamples = (examples = []) => {
     return map(examples, (example) => ({
@@ -704,13 +725,19 @@ export const transformRequestToSaveToFilesystem = (item) => {
     }));
   };
 
+  const appToSave = _item.app && (_item.app.enabled === true || (_item.app.code && _item.app.code.length))
+    ? { code: _item.app.code || null, enabled: _item.app.enabled === true }
+    : null;
+
   const itemToSave = {
     uid: _item.uid,
     type: _item.type,
     name: _item.name,
+    description: _item.description,
     seq: _item.seq,
     settings: _item.settings,
     tags: _item.tags,
+    app: appToSave,
     examples: transformExamples(_item.examples || []),
     request: {
       method: _item.request.method,
@@ -861,7 +888,7 @@ export const transformFolderRootToSave = (folder) => {
 export const deleteItemInCollection = (itemUid, collection) => {
   collection.items = filter(collection.items, (i) => i.uid !== itemUid);
 
-  let flattenedItems = flattenItems(collection.items);
+  const flattenedItems = flattenItems(collection.items);
   each(flattenedItems, (i) => {
     if (i.items && i.items.length) {
       i.items = filter(i.items, (i) => i.uid !== itemUid);
@@ -872,7 +899,7 @@ export const deleteItemInCollection = (itemUid, collection) => {
 export const deleteItemInCollectionByPathname = (pathname, collection) => {
   collection.items = filter(collection.items, (i) => i.pathname !== pathname);
 
-  let flattenedItems = flattenItems(collection.items);
+  const flattenedItems = flattenItems(collection.items);
   each(flattenedItems, (i) => {
     if (i.items && i.items.length) {
       i.items = filter(i.items, (i) => i.pathname !== pathname);
@@ -905,19 +932,19 @@ export const getCollectionItemCounts = (items = []) => {
 
 /**
  * Orders a list of collection items exactly the way the Sidebar tree renders them:
- * folders first (via `sortByNameThenSequence`), then requests ordered by `seq`. The
- * same ordering is applied recursively to every nested folder so an exported/serialized
- * tree matches the sidebar at all depths.
+ * folders first (via `sortByNameThenSequence`), then standalone apps by `seq`, then
+ * requests by `seq`. The same ordering is applied recursively to every nested folder
+ * so an exported/serialized tree matches the sidebar at all depths.
  *
- * Items that are neither folders nor requests (e.g. `js` script files) are excluded,
- * mirroring the sidebar, which only renders folders and requests. Transient items are
- * excluded too.
+ * Items that are none of folder/app/request (e.g. `js` script files) are excluded,
+ * mirroring the sidebar. Transient items are excluded too.
  */
 export const sortItemsBySidebarOrder = (items = []) => {
   const folderItems = sortByNameThenSequence(filter(items, (i) => isItemAFolder(i) && !i.isTransient));
+  const appItems = filter(items, (i) => i.type === 'app' && !i.isTransient).sort((a, b) => a.seq - b.seq);
   const requestItems = filter(items, (i) => isItemARequest(i) && !i.isTransient).sort((a, b) => a.seq - b.seq);
 
-  return [...folderItems, ...requestItems].map((item) =>
+  return [...folderItems, ...appItems, ...requestItems].map((item) =>
     Array.isArray(item.items) ? { ...item, items: sortItemsBySidebarOrder(item.items) } : item
   );
 };
@@ -999,6 +1026,10 @@ export const humanizeRequestAuthMode = (mode) => {
     }
     case 'apikey': {
       label = 'API Key';
+      break;
+    }
+    case 'akamai-edgegrid': {
+      label = 'Akamai EdgeGrid';
       break;
     }
   }
@@ -1087,8 +1118,14 @@ export const areItemsTheSameExceptSeqUpdate = (_item1, _item2) => {
   delete item2.draft;
 
   // get projection of both items
-  item1 = transformRequestToSaveToFilesystem(item1);
-  item2 = transformRequestToSaveToFilesystem(item2);
+  // a partial/unparseable item has no comparable request projection; treat it as
+  // changed so callers fall back to a full update instead of throwing
+  try {
+    item1 = transformRequestToSaveToFilesystem(item1);
+    item2 = transformRequestToSaveToFilesystem(item2);
+  } catch (err) {
+    return false;
+  }
 
   // delete uids from both items
   deleteUidsInItem(item1);
@@ -1173,7 +1210,7 @@ export const getDefaultRequestPaneTab = (item) => {
 };
 
 export const getGlobalEnvironmentVariables = ({ globalEnvironments, activeGlobalEnvironmentUid }) => {
-  let variables = {};
+  const variables = {};
   const environment = globalEnvironments?.find((env) => env?.uid === activeGlobalEnvironmentUid);
   if (environment) {
     each(environment.variables, (variable) => {
@@ -1198,14 +1235,15 @@ export const getGlobalEnvironmentVariablesMasked = ({ globalEnvironments, active
 };
 
 export const getEnvironmentVariables = (collection) => {
-  let variables = {};
+  const variables = {};
   if (collection) {
     const environment = findEnvironmentInCollection(collection, collection.activeEnvironmentUid);
     if (environment) {
-      each(environment.variables, (variable) => {
-        if (variable.name && variable.enabled) {
-          variables[variable.name] = variable.value;
-        }
+      // Apply secrets last so a secret wins over a plain variable of the same name,
+      // regardless of their order in the array.
+      const enabledVars = (environment.variables || []).filter((v) => v.name && v.enabled);
+      [...enabledVars.filter((v) => !v.secret), ...enabledVars.filter((v) => v.secret)].forEach((variable) => {
+        variables[variable.name] = variable.value;
       });
     }
   }
@@ -1232,7 +1270,7 @@ export const getEnvironmentVariablesMasked = (collection) => {
 };
 
 const getPathParams = (item) => {
-  let pathParams = {};
+  const pathParams = {};
   if (item && item.request && item.request.params) {
     item.request.params.forEach((param) => {
       if (param.type === 'path' && param.name && param.value) {
@@ -1242,6 +1280,10 @@ const getPathParams = (item) => {
   }
   return pathParams;
 };
+
+export const isOpenCollectionFormat = (collection) => Boolean(collection?.brunoConfig?.opencollection);
+
+export const getCollectionVersion = (collection) => collection?.brunoConfig?.version || '';
 
 export const getTotalRequestCountInCollection = (collection) => {
   let count = 0;
@@ -1260,7 +1302,7 @@ export const getAllVariables = (collection, item) => {
   if (!collection) return {};
   const envVariables = getEnvironmentVariables(collection);
   const requestTreePath = getTreePathFromCollectionToItem(collection, item);
-  let { collectionVariables, folderVariables, requestVariables } = mergeVars(collection, requestTreePath);
+  const { collectionVariables, folderVariables, requestVariables } = mergeVars(collection, requestTreePath);
   const pathParams = getPathParams(item);
   const { globalEnvironmentVariables = {} } = collection;
 
@@ -1322,8 +1364,8 @@ export const getAllVariables = (collection, item) => {
 // Merge headers from collection, folders, and request
 export const mergeHeaders = (collection, request, requestTreePath, options = {}) => {
   const { includeDisabledHeaders = false } = options;
-  let headers = new Map();
-  let disabledHeaders = new Map();
+  const headers = new Map();
+  const disabledHeaders = new Map();
 
   // Add collection headers first
   const collectionHeaders = collection?.draft?.root ? get(collection, 'draft.root.request.headers', []) : get(collection, 'root.request.headers', []);
@@ -1337,7 +1379,7 @@ export const mergeHeaders = (collection, request, requestTreePath, options = {})
 
   // Add folder headers next, traversing from root to leaf
   if (requestTreePath && requestTreePath.length > 0) {
-    for (let i of requestTreePath) {
+    for (const i of requestTreePath) {
       if (i.type === 'folder') {
         const folderHeaders = i?.draft ? get(i, 'draft.request.headers', []) : get(i, 'root.request.headers', []);
         folderHeaders.forEach((header) => {
@@ -1380,7 +1422,7 @@ export const maskInputValue = (value) => {
 };
 
 export const getTreePathFromCollectionToItem = (collection, _item) => {
-  let path = [];
+  const path = [];
   let item = findItemInCollection(collection, _item?.uid);
   while (item) {
     path.unshift(item);
@@ -1390,17 +1432,17 @@ export const getTreePathFromCollectionToItem = (collection, _item) => {
 };
 
 const mergeVars = (collection, requestTreePath = []) => {
-  let collectionVariables = {};
-  let folderVariables = {};
-  let requestVariables = {};
+  const collectionVariables = {};
+  const folderVariables = {};
+  const requestVariables = {};
   const collectionRoot = collection?.draft?.root || collection?.root || {};
-  let collectionRequestVars = get(collectionRoot, 'request.vars.req', []);
+  const collectionRequestVars = get(collectionRoot, 'request.vars.req', []);
   collectionRequestVars.forEach((_var) => {
     if (_var.enabled) {
       collectionVariables[_var.name] = _var.value;
     }
   });
-  for (let i of requestTreePath) {
+  for (const i of requestTreePath) {
     if (!i) {
       continue;
     }
@@ -1408,14 +1450,14 @@ const mergeVars = (collection, requestTreePath = []) => {
     if (i.type === 'folder') {
       // Check draft first, then fall back to root
       const folderRoot = i.draft || i.root;
-      let vars = get(folderRoot, 'request.vars.req', []);
+      const vars = get(folderRoot, 'request.vars.req', []);
       vars.forEach((_var) => {
         if (_var.enabled) {
           folderVariables[_var.name] = _var.value;
         }
       });
     } else {
-      let vars = i.draft ? get(i, 'draft.request.vars.req', []) : get(i, 'request.vars.req', []);
+      const vars = i.draft ? get(i, 'draft.request.vars.req', []) : get(i, 'request.vars.req', []);
       vars.forEach((_var) => {
         if (_var.enabled) {
           requestVariables[_var.name] = _var.value;
@@ -1452,7 +1494,7 @@ export const getEnvVars = (environment = {}) => {
 };
 
 export const getFormattedCollectionOauth2Credentials = ({ oauth2Credentials = [] }) => {
-  let credentialsVariables = {};
+  const credentialsVariables = {};
   oauth2Credentials.forEach(({ credentialsId, credentials }) => {
     if (credentials) {
       Object.entries(credentials).forEach(([key, value]) => {
@@ -1685,7 +1727,11 @@ export const getVariableScope = (variableName, collection, item) => {
   if (collection.activeEnvironmentUid) {
     const environment = findEnvironmentInCollection(collection, collection.activeEnvironmentUid);
     if (environment && environment.variables) {
-      const envVar = environment.variables.find((v) => v.name === variableName && v.enabled);
+      // A name can exist as both a plain variable and a secret. The secret takes
+      // precedence (matching interpolation), so the resolved value and the secret
+      // flag stay in sync instead of coming from different entries.
+      const envVars = environment.variables.filter((v) => v.name === variableName && v.enabled);
+      const envVar = envVars.find((v) => v.secret) || envVars[0];
       if (envVar) {
         return {
           type: 'environment',
